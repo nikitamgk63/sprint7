@@ -1,9 +1,13 @@
 package models;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import java.util.List;
 
 @Data
+@Builder
+@AllArgsConstructor
 public class Order {
     private String firstName;
     private String lastName;

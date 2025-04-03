@@ -14,12 +14,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.apache.http.HttpStatus.*;
 import static utils.Endpoints.BASE_URL;
 
-public class CreateCourierTest {
+public class CreateCourierTest extends TestBase {
+    private Faker faker = new Faker();
+    private String login = faker.name().username() + "_" + System.currentTimeMillis();
+    private String password = faker.internet().password();
+    private String firstName = faker.name().firstName();
     private Integer courierId;
-    private String login;
-    private String password;
-    private String firstName;
-    private Faker faker;
 
     @Before
     public void setUp() {
@@ -30,14 +30,6 @@ public class CreateCourierTest {
         RestAssured.baseURI = BASE_URL;
     }
 
-    @After
-    public void tearDown() {
-        if (courierId != null) {
-            CourierApiClient.deleteCourier(courierId)
-                    .then()
-                    .statusCode(SC_OK);
-        }
-    }
 
     @Test
     @DisplayName("POST /api/v1/courier - Создание курьера с firstName")
@@ -84,4 +76,12 @@ public class CreateCourierTest {
                 .statusCode(SC_BAD_REQUEST)
                 .body("message", equalTo("Недостаточно данных для создания учетной записи"));
     }
+        @After
+        public void tearDown() {
+            if (courierId != null) {
+                CourierApiClient.deleteCourier(courierId)
+                        .then()
+                        .statusCode(SC_OK);
+            }
+        }
 }

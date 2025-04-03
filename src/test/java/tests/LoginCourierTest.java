@@ -2,29 +2,26 @@ package tests;
 
 import api.CourierApiClient;
 import io.qameta.allure.Description;
-import io.qameta.allure.Step;
 import io.qameta.allure.junit4.DisplayName;
-import io.restassured.http.ContentType;
-import io.restassured.response.Response;
+import io.restassured.RestAssured;
+import models.Courier;
 import models.LoginCredentials;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import net.datafaker.Faker;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import static io.restassured.RestAssured.given;
+import static api.CourierApiClient.deleteCourier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.apache.http.HttpStatus.*;
+import static utils.Endpoints.BASE_URL;
 
-public class LoginCourierTest {
-
+public class LoginCourierTest extends TestBase {
     private Faker faker;
     private String login;
     private String password;
+    private String firstName;
     private Integer courierId;
 
     @Before
@@ -32,11 +29,13 @@ public class LoginCourierTest {
         faker = new Faker();
         login = faker.name().username() + "_" + System.currentTimeMillis();
         password = faker.internet().password();
+        firstName = faker.name().firstName();
+        RestAssured.baseURI = BASE_URL;
 
-        // Создаем тестового курьера
-        courierId = createCourier(login, password)
+        Courier courier = new Courier(login, password, firstName);
+        courierId = CourierApiClient.createCourier(courier)
                 .then()
-                .statusCode(SC_CREATED) // Проверка, что курьер создан успешно
+                .statusCode(SC_CREATED)
                 .extract()
                 .path("id");
     }
@@ -53,7 +52,7 @@ public class LoginCourierTest {
     @DisplayName("POST /api/v1/courier/login - Успешная авторизация")
     @Description("Проверка успешной авторизации с валидными логином и паролем")
     public void successfulLoginTest() {
-        loginCourier(login, password)
+        CourierApiClient.loginCourier(new LoginCredentials(login, password))
                 .then()
                 .statusCode(SC_OK)
                 .body("id", notNullValue());
@@ -63,13 +62,8 @@ public class LoginCourierTest {
     @DisplayName("POST /api/v1/courier/login - Неверный логин")
     @Description("Проверка ошибки при неверном логине")
     public void loginWithInvalidLoginTest() {
-        // Генерируем неверный логин (добавляем префикс)
         String invalidLogin = "invalid_" + login;
-
-        // Создаем credentials с неверным логином, но верным паролем
-        LoginCredentials credentials = new LoginCredentials(invalidLogin, password);
-
-        CourierApiClient.loginCourier(credentials)
+        CourierApiClient.loginCourier(new LoginCredentials(invalidLogin, password))
                 .then()
                 .statusCode(SC_NOT_FOUND)
                 .body("message", equalTo("Учетная запись не найдена"));
@@ -79,13 +73,8 @@ public class LoginCourierTest {
     @DisplayName("POST /api/v1/courier/login - Неверный пароль")
     @Description("Проверка ошибки при неверном пароле")
     public void loginWithInvalidPasswordTest() {
-        // Генерируем неверный пароль (добавляем префикс)
         String invalidPassword = "wrong_" + password;
-
-        // Создаем credentials с верным логином, но неверным паролем
-        LoginCredentials credentials = new LoginCredentials(login, invalidPassword);
-
-        CourierApiClient.loginCourier(credentials)
+        CourierApiClient.loginCourier(new LoginCredentials(login, invalidPassword))
                 .then()
                 .statusCode(SC_NOT_FOUND)
                 .body("message", equalTo("Учетная запись не найдена"));
@@ -95,7 +84,7 @@ public class LoginCourierTest {
     @DisplayName("POST /api/v1/courier/login - Отсутствие логина")
     @Description("Проверка ошибки при отсутствии логина")
     public void loginWithoutLoginTest() {
-        loginCourier(null, password)
+        CourierApiClient.loginCourier(new LoginCredentials(null, password))
                 .then()
                 .statusCode(SC_BAD_REQUEST)
                 .body("message", equalTo("Недостаточно данных для входа"));
@@ -105,7 +94,7 @@ public class LoginCourierTest {
     @DisplayName("POST /api/v1/courier/login - Отсутствие пароля")
     @Description("Проверка ошибки при отсутствии пароля")
     public void loginWithoutPasswordTest() {
-        loginCourier(login, null)
+        CourierApiClient.loginCourier(new LoginCredentials(login, null))
                 .then()
                 .statusCode(SC_BAD_REQUEST)
                 .body("message", equalTo("Недостаточно данных для входа"));
@@ -115,43 +104,9 @@ public class LoginCourierTest {
     @DisplayName("POST /api/v1/courier/login - Пустые данные")
     @Description("Проверка ошибки при пустых логине и пароле")
     public void loginWithEmptyCredentialsTest() {
-        loginCourier("", "")
+        CourierApiClient.loginCourier(new LoginCredentials("", ""))
                 .then()
                 .statusCode(SC_BAD_REQUEST)
                 .body("message", equalTo("Недостаточно данных для входа"));
-    }
-
-    // Вспомогательные методы
-
-    @Step("Создание курьера")
-    private Response createCourier(String login, String password) {
-        Map<String, String> body = Map.of(
-                "login", login,
-                "password", password
-        );
-        return given()
-                .contentType(ContentType.JSON)
-                .body(body)
-                .post("https://qa-scooter.praktikum-services.ru/api/v1/courier");
-    }
-
-    @Step("Авторизация курьера")
-    private Response loginCourier(String login, String password) {
-        Map<String, String> body = new HashMap<>();
-        if (login != null) body.put("login", login);
-        if (password != null) body.put("password", password);
-
-        return given()
-                .contentType(ContentType.JSON)
-                .body(body)
-                .post("https://qa-scooter.praktikum-services.ru/api/v1/courier/login");
-    }
-
-    @Step("Удаление курьера")
-    private void deleteCourier(int courierId) {
-        given()
-                .delete("https://qa-scooter.praktikum-services.ru/api/v1/courier/" + courierId)
-                .then()
-                .statusCode(SC_OK);
     }
 }
